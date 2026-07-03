@@ -85,6 +85,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                     className={({ isActive }) =>
                       isActive ? "nav-link active" : "nav-link"
                     }
+                    onClick={onClose}
                   >
                     <div className="nav-text">
                       <div className="label">{item.label}</div>
