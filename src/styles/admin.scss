@@ -357,9 +357,10 @@
       -webkit-overflow-scrolling: touch;
       
       .data-table {
-        min-width: 800px; /* Forces horizontal scrolling instead of squishing */
-        th, td {
-          white-space: nowrap;
+        min-width: 1000px; /* 테이블 최소 가로폭을 늘려 줄바꿈 방지 */
+        th, td, td * {
+          white-space: nowrap !important; /* 내부 span, div 등 모든 하위 요소 줄바꿈 강제 방지 */
+          word-break: keep-all !important;
         }
       }
     }
