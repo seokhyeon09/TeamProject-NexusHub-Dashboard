@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { X } from "lucide-react";
 
 type SidebarItem = {
   label: string;
@@ -51,13 +52,26 @@ const sidebarData: SidebarGroup[] = [
   },
 ];
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   return (
-    <aside className="admin-sidebar">
-      <div className="current-terminal-box">
-        <span className="label">현재 터미널</span>
-        <span className="value">남양주 터미널</span>
-      </div>
+    <>
+      <div className={`sidebar-overlay ${isOpen ? 'active' : ''}`} onClick={onClose} />
+      <aside className={`admin-sidebar ${isOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-mobile-header">
+          <span className="title">메뉴</span>
+          <button className="btn-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="current-terminal-box">
+          <span className="label">현재 터미널</span>
+          <span className="value">남양주 터미널</span>
+        </div>
 
       <div className="sidebar-menus">
         {sidebarData.map((group, idx) => (
@@ -85,7 +99,8 @@ export default function AdminSidebar() {
             </ul>
           </div>
         ))}
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 }

@@ -320,3 +320,36 @@
     }
   }
 }
+
+@include tablet {
+  .dashboard-page {
+    .dashboard-kpi-cards {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .dashboard-middle-row {
+      grid-template-columns: 1fr;
+    }
+    .dashboard-bottom-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+}
+
+@include mobile {
+  .dashboard-page {
+    .dashboard-kpi-cards {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .dashboard-middle-row {
+      grid-template-columns: 1fr;
+    }
+    .dashboard-bottom-row {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .dash-card {
+      padding: 16px;
+    }
+  }
+}

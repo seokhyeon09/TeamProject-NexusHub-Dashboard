@@ -1,6 +1,10 @@
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Menu } from 'lucide-react';
 
-export default function AdminHeader() {
+interface AdminHeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   const handleLogout = () => {
     window.location.href = import.meta.env.VITE_PUBLIC_URL;
   };
@@ -8,8 +12,11 @@ export default function AdminHeader() {
   return (
     <header className="admin-header">
       <div className="header-left">
+        <button className="btn-mobile-menu" onClick={onMenuClick}>
+          <Menu size={20} />
+        </button>
         <h1 className="logo">
-          <span className="brand">NexusHub</span> <span className="divider">|</span> 직원 인트라넷
+          <span className="brand">NexusHub</span> <span className="divider">|</span> <span className="logo-text">직원 인트라넷</span>
         </h1>
       </div>
 
