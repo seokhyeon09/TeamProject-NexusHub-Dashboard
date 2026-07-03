@@ -402,5 +402,35 @@
       grid-template-columns: 1fr;
       gap: 12px;
     }
+    
+    .filter-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 12px;
+
+      .filter-groups {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+        gap: 12px;
+
+        .filter-group {
+          flex-wrap: wrap;
+          width: 100%;
+          
+          .filter-btn {
+            white-space: nowrap;
+          }
+        }
+      }
+
+      .search-box {
+        width: 100%;
+        input {
+          width: 100%;
+        }
+      }
+    }
   }
 }
