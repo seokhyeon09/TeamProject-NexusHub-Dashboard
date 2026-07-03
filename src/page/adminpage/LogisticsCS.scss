@@ -180,24 +180,30 @@
           margin-right: 4px;
         }
 
-        .filter-btn {
-          padding: 6px 16px;
-          border-radius: 20px;
-          font-size: 13px;
-          font-weight: 600;
-          background: #f1f5f9;
-          color: #475569;
-          border: none;
-          cursor: pointer;
-          transition: all 0.2s;
+        .filter-buttons {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
 
-          &:hover {
-            background: #e2e8f0;
-          }
+          .filter-btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: #475569;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
 
-          &.active {
-            background: #3b82f6;
-            color: #fff;
+            &:hover {
+              background: #e2e8f0;
+            }
+
+            &.active {
+              background: #3b82f6;
+              color: #fff;
+            }
           }
         }
       }
