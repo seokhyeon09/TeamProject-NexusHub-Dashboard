@@ -352,11 +352,11 @@
       }
     }
 
-    .data-table-container {
+    .data-table-container, .control-table, .cs-table, .outgoing-dock-table {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
       
-      .data-table {
+      table, .data-table {
         min-width: 1000px; /* 테이블 최소 가로폭을 늘려 줄바꿈 방지 */
         th, td, td * {
           white-space: nowrap !important; /* 내부 span, div 등 모든 하위 요소 줄바꿈 강제 방지 */

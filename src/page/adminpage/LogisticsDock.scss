@@ -314,3 +314,27 @@
     color: #64748b;
   }
 }
+
+@include tablet {
+  .dock-page {
+    .dock-summary-cards {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .incoming-dock-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+}
+
+@include mobile {
+  .dock-page {
+    .dock-summary-cards {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .incoming-dock-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+}
