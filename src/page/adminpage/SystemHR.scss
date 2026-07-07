@@ -364,6 +364,16 @@
             background-color: #fee2e2;
           }
         }
+
+        &.success-light {
+          background-color: #f0fdf4;
+          border-color: #bbf7d0;
+          color: #16a34a;
+
+          &:hover {
+            background-color: #dcfce7;
+          }
+        }
       }
     }
 

@@ -323,6 +323,14 @@
 
               &:hover { background: #fee2e2; }
             }
+
+            &.btn-light-green {
+              background: #f0fdf4;
+              border: 1px solid #bbf7d0;
+              color: #16a34a;
+
+              &:hover { background: #dcfce7; }
+            }
           }
         }
       }

@@ -1,45 +1,48 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './LogisticsControl.scss';
-
-type StatusFilter = '전체' | '하차완료' | '분류중' | '상차완료' | '미출고';
-type ZoneFilter = '전체 구역' | '진접읍' | '오남읍' | '별내동' | '퇴계원읍';
-type ItemStatus = '하차완료' | '분류중' | '상차완료' | '미출고';
-
-interface ControlItem {
-  id: string;
-  trackingNo: string;
-  destMain: string;
-  destSub: string;
-  driver: string;
-  driverZone: string;
-  scanTime: string;
-  status: ItemStatus;
-  zone: ZoneFilter;
-}
-
-const initialItems: ControlItem[] = [
-  { id: '1', trackingNo: '5839-1029-001', destMain: '진접읍 장현리', destSub: '간선11톤 A-03 도크 하차분', driver: '김철수', driverZone: '진접1구역', scanTime: '06:15:30', status: '상차완료', zone: '진접읍' },
-  { id: '2', trackingNo: '5839-1029-002', destMain: '오남읍 오남리', destSub: '간선11톤 A-03 도크 하차분', driver: '이영희', driverZone: '오남2구역', scanTime: '06:20:12', status: '분류중', zone: '오남읍' },
-  { id: '3', trackingNo: '5839-1029-003', destMain: '별내동 (아파트)', destSub: '간선11톤 A-04 도크 하차분', driver: '박지민', driverZone: '별내3구역', scanTime: '06:25:00', status: '하차완료', zone: '별내동' },
-  { id: '4', trackingNo: '5839-1029-004', destMain: '퇴계원읍', destSub: '간선11톤 A-04 도크 하차분', driver: '미배정 (결원)', driverZone: '', scanTime: '06:30:45', status: '미출고', zone: '퇴계원읍' },
-  { id: '5', trackingNo: '5839-1029-005', destMain: '진접읍 부평리', destSub: '간선11톤 A-05 도크 하차분', driver: '김철수', driverZone: '진접1구역', scanTime: '06:33:18', status: '분류중', zone: '진접읍' },
-  { id: '6', trackingNo: '5839-1029-006', destMain: '오남읍 양지리', destSub: '간선11톤 A-05 도크 하차분', driver: '이영희', driverZone: '오남2구역', scanTime: '06:35:51', status: '상차완료', zone: '오남읍' },
-];
-
-const availableDrivers = ['최민호', '강䄜연', '조현우', '임하늘'];
+import Modal from '../../components/Modal';
+import {
+  type StatusFilter,
+  type ZoneFilter,
+  type ItemStatus,
+  type ControlItem,
+  initialItems,
+  availableDrivers
+} from '../../data/mockControl';
 
 const statusPillClass: Record<ItemStatus, string> = {
   '상차완료': 'green',
   '분류중': 'yellow',
   '하차완료': 'blue',
   '미출고': 'red',
+  '보류': 'red',
 };
 
 export default function LogisticsControl() {
-  const [items, setItems] = useState<ControlItem[]>(initialItems);
+  const [items, setItems] = useState<ControlItem[]>(() => {
+    const saved = sessionStorage.getItem('mock_control_items');
+    return saved ? JSON.parse(saved) : initialItems;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mock_control_items', JSON.stringify(items));
+  }, [items]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('전체');
   const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('전체 구역');
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+    submitText?: string;
+    cancelText?: string;
+    onSubmit?: () => void;
+    noFooter?: boolean;
+  } | null>(null);
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
@@ -50,20 +53,117 @@ export default function LogisticsControl() {
     });
   }, [items, statusFilter, zoneFilter, searchTerm]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const startIdx = (page - 1) * itemsPerPage;
+  const currentItems = filteredItems.slice(startIdx, startIdx + itemsPerPage);
+
   const handleReassign = (id: string) => {
-    const newDriver = availableDrivers[Math.floor(Math.random() * availableDrivers.length)];
-    setItems(prev => prev.map(item => item.id === id
-      ? { ...item, driver: newDriver, driverZone: item.zone === '전체 구역' ? '' : `${item.zone.replace('읍', '').replace('동', '')}구역`, status: item.status === '미출고' ? '분류중' : item.status }
-      : item));
-    alert(`기사가 ${newDriver}(으)로 재배정되었습니다.`);
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    let selectedDriver = availableDrivers[0];
+
+    setModalContent({
+      title: '기사 재배정',
+      submitText: '재배정',
+      content: (
+        <div className="form-group">
+          <label>새로 배정할 기사를 선택하세요</label>
+          <select onChange={(e) => selectedDriver = e.target.value} defaultValue={selectedDriver}>
+            {availableDrivers.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      ),
+      onSubmit: () => {
+        setItems(prev => prev.map(item => item.id === id
+          ? { ...item, driver: selectedDriver, driverZone: item.zone === '전체 구역' ? '' : `${item.zone.replace('읍', '').replace('동', '')}구역`, status: item.status === '미출고' ? '분류중' : item.status }
+          : item));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleHold = (id: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, status: '미출고' as ItemStatus } : item));
-    alert('해당 화물이 파손/보류 처리되었습니다. 예외 화물 및 CS 처리반 목록으로 이동됩니다.');
+    setModalContent({
+      title: '파손/보류 처리',
+      submitText: '처리하기',
+      content: <p>해당 화물을 파손/보류(미출고) 상태로 변경하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, status: '미출고' as ItemStatus } : item));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
-  const statusOptions: StatusFilter[] = ['전체', '하차완료', '분류중', '상차완료', '미출고'];
+  const handleBulkReport = () => {
+    setModalContent({
+      title: '잔류 화물 일괄 보고',
+      submitText: '보고 전송',
+      content: <p>미출고 화물 <b>{summary.pending}건</b>에 대해 관할 터미널장에게 일괄 보고를 전송하시겠습니까?</p>,
+      onSubmit: () => {
+        setModalContent({ title: '전송 완료', content: <p>보고서 전송이 완료되었습니다.</p>, noFooter: true });
+        // After 2 seconds, auto-close
+        setTimeout(() => setModalOpen(false), 2000);
+      }
+    });
+    setModalOpen(true);
+  };
+
+  const handleCompleteLoading = (id: string) => {
+    setModalContent({
+      title: '상차 완료',
+      submitText: '상차 완료',
+      content: <p>이 화물을 상차 완료 처리하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: '상차완료' } : i)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
+  };
+
+  const handleRegisterUnknown = () => {
+    let trackingNo = '';
+    let destMain = '';
+
+    setModalContent({
+      title: '미인식 화물 수동 등록',
+      submitText: '등록',
+      content: (
+        <>
+          <div className="form-group">
+            <label>운송장 번호</label>
+            <input type="text" placeholder="예: 5839-xxxx-xxxx" onChange={(e) => trackingNo = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>목적지</label>
+            <input type="text" placeholder="예: 남양주시 진접읍" onChange={(e) => destMain = e.target.value} />
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!trackingNo || !destMain) return;
+        const newItem: ControlItem = {
+          id: Date.now().toString(),
+          trackingNo,
+          destMain,
+          destSub: '수동 등록 건',
+          driver: '미배정',
+          driverZone: '',
+          scanTime: new Date().toTimeString().slice(0, 8),
+          status: '분류중',
+          zone: '전체 구역'
+        };
+        setItems(prev => [newItem, ...prev]);
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
+  };
+
+  const statusOptions: StatusFilter[] = ['전체', '하차완료', '분류중', '상차완료', '미출고', '보류'];
   const zoneOptions: ZoneFilter[] = ['전체 구역', '진접읍', '오남읍', '별내동', '퇴계원읍'];
 
   const summary = {
@@ -71,7 +171,7 @@ export default function LogisticsControl() {
     unloaded: items.filter(i => i.status === '하차완료').length,
     sorting: items.filter(i => i.status === '분류중').length,
     loaded: items.filter(i => i.status === '상차완료').length,
-    pending: items.filter(i => i.status === '미출고').length,
+    pending: items.filter(i => i.status === '미출고' || i.status === '보류').length,
   };
 
   return (
@@ -86,8 +186,8 @@ export default function LogisticsControl() {
           <p className="update-time">2026년 6월 24일 (수) 기준 · 실시간 갱신</p>
         </div>
         <div className="header-right">
-          <button className="btn-outline-red" onClick={() => alert(`미출고 화물 ${summary.pending}건이 일괄 보고되었습니다.`)}>잔류 화물(미출고) 일괄 보고</button>
-          <button className="btn-primary" onClick={() => alert('미인식 화물 수동 등록 창을 엽니다.')}>미인식 화물 수동 등록</button>
+          <button className="btn-outline-red" onClick={handleBulkReport}>잔류 화물(미출고) 일괄 보고</button>
+          <button className="btn-primary" onClick={handleRegisterUnknown}>미인식 화물 수동 등록</button>
         </div>
       </div>
 
@@ -95,7 +195,7 @@ export default function LogisticsControl() {
       <div className="control-summary-cards">
         <div className="summary-card">
           <div className="card-title">오늘 전체 화물</div>
-          <div className="card-value">1,284<span>건</span></div>
+          <div className="card-value">{summary.total}<span>건</span></div>
         </div>
         <div className="summary-card">
           <div className="card-title">하차완료</div>
@@ -172,8 +272,8 @@ export default function LogisticsControl() {
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map(item => (
-              <tr key={item.id}>
+            {currentItems.map((item) => (
+              <tr key={item.id} className={item.status === '보류' ? 'row-alert' : ''}>
                 <td><a href="#" className="tracking-num" onClick={(e) => e.preventDefault()}>{item.trackingNo}</a></td>
                 <td>
                   <span className="main-text">{item.destMain}</span>
@@ -187,8 +287,11 @@ export default function LogisticsControl() {
                 <td><span className={`pill ${statusPillClass[item.status]}`}>{item.status}</span></td>
                 <td>
                   <div className="action-btns">
-                    <button className="btn-light-blue" onClick={() => handleReassign(item.id)}>기사 재배정/구역 변경</button>
-                    <button className="btn-light-red" onClick={() => handleHold(item.id)}>파손/보류 처리</button>
+                    {item.status !== '상차완료' && (
+                      <button className="btn-light-green" onClick={() => handleCompleteLoading(item.id)}>상차완료</button>
+                    )}
+                    <button className="btn-light-blue" onClick={() => handleReassign(item.id)}>기사 재배정</button>
+                    <button className="btn-light-red" onClick={() => handleHold(item.id)}>파손/보류</button>
                   </div>
                 </td>
               </tr>
@@ -202,18 +305,30 @@ export default function LogisticsControl() {
         </table>
       </div>
 
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalContent?.title || ''}
+        onSubmit={modalContent?.onSubmit}
+        submitText={modalContent?.submitText}
+        cancelText={modalContent?.cancelText}
+        noFooter={modalContent?.noFooter}
+      >
+        {modalContent?.content}
+      </Modal>
+
       {/* Pagination */}
-      <div className="pagination-wrap">
-        <div className="page-info">전체 1,284건 중 1-{filteredItems.length}건 표시</div>
-        <div className="page-numbers">
-          <button className="active">1</button>
-          <button>2</button>
-          <button>3</button>
-          <button className="dots">...</button>
-          <button>214</button>
-          <button>&gt;</button>
+      {totalPages > 1 && (
+        <div className="pagination-wrap">
+          <div className="page-info">전체 {filteredItems.length}건 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredItems.length)}건 표시</div>
+          <div className="page-numbers">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button key={p} className={p === page ? "active" : ""} onClick={() => setPage(p)}>{p}</button>
+            ))}
+            {page < totalPages && <button onClick={() => setPage(page + 1)}>&gt;</button>}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Footer Info */}
       <div className="footer-info">

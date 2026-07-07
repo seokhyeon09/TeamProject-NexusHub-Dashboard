@@ -1,80 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './LogisticsCS.scss';
-
-type ExceptionType = '파손' | '분실';
-type ReceivedPath = '홈페이지 연동' | '현장 직접 등록';
-type CsStatus = '확인중' | '창고 보관중' | '위치 추적중' | '보상완료' | '반려';
-
-interface CsItem {
-  id: string;
-  trackingNo: string;
-  type: ExceptionType;
-  path: ReceivedPath;
-  pathDetail: string;
-  customerName: string;
-  customerPhone: string;
-  receivedTime: string;
-  status: CsStatus;
-}
-
-const initialItems: CsItem[] = [
-  {
-    id: '1',
-    trackingNo: '5839-1029-003',
-    type: '파손',
-    path: '홈페이지 연동',
-    pathDetail: '파손/분실 보상 접수',
-    customerName: '최은서',
-    customerPhone: '010-22**-99**',
-    receivedTime: '08:02:14',
-    status: '확인중',
-  },
-  {
-    id: '2',
-    trackingNo: '5839-0988-117',
-    type: '파손',
-    path: '현장 직접 등록',
-    pathDetail: '레일 상 파손 발생',
-    customerName: '한지우',
-    customerPhone: '010-33**-21**',
-    receivedTime: '07:48:02',
-    status: '창고 보관중',
-  },
-  {
-    id: '3',
-    trackingNo: '5839-0975-042',
-    type: '분실',
-    path: '홈페이지 연동',
-    pathDetail: '파손/분실 보상 접수',
-    customerName: '오태양',
-    customerPhone: '010-45**-88**',
-    receivedTime: '07:30:55',
-    status: '위치 추적중',
-  },
-  {
-    id: '4',
-    trackingNo: '5839-0961-209',
-    type: '파손',
-    path: '현장 직접 등록',
-    pathDetail: '상하차 중 박스 파손',
-    customerName: '서윤아',
-    customerPhone: '010-19**-44**',
-    receivedTime: '06:55:30',
-    status: '보상완료',
-  },
-  {
-    id: '5',
-    trackingNo: '5839-0942-330',
-    type: '분실',
-    path: '홈페이지 연동',
-    pathDetail: '파손/분실 보상 접수',
-    customerName: '강도윤',
-    customerPhone: '010-77**-12**',
-    receivedTime: '06:40:11',
-    status: '보상완료',
-  },
-];
-
+import Modal from '../../components/Modal';
+import {
+  type ExceptionType,
+  type CsStatus,
+  type TabFilter,
+  type PathFilter,
+  type CsItem,
+  initialItems
+} from '../../data/mockCS';
 function statusPillClass(status: CsStatus) {
   switch (status) {
     case '확인중':
@@ -94,15 +28,30 @@ function typePillClass(type: ExceptionType) {
   return type === '파손' ? 'pill red' : 'pill purple';
 }
 
-type TabFilter = '전체' | '파손' | '분실' | '처리완료';
-type PathFilter = '전체' | '홈페이지 자동연동' | '현장 직접 등록';
-
 export default function LogisticsCS() {
-  const [items, setItems] = useState<CsItem[]>(initialItems);
+  const [items, setItems] = useState<CsItem[]>(() => {
+    const saved = sessionStorage.getItem('mock_cs_items');
+    return saved ? JSON.parse(saved) : initialItems;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mock_cs_items', JSON.stringify(items));
+  }, [items]);
   const [activeTab, setActiveTab] = useState<TabFilter>('전체');
   const [pathFilter, setPathFilter] = useState<PathFilter>('전체');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
+
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+    submitText?: string;
+    cancelText?: string;
+    onSubmit?: () => void;
+    noFooter?: boolean;
+  } | null>(null);
 
   const counts = useMemo(() => {
     const total = items.length;
@@ -139,46 +88,141 @@ export default function LogisticsCS() {
   const handleApprove = (id: string) => {
     const target = items.find((i) => i.id === id);
     if (!target) return;
-    if (!window.confirm(`운송장 ${target.trackingNo} 건의 보상을 승인하시겠습니까?`)) return;
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: '보상완료' } : i))
-    );
+
+    setModalContent({
+      title: '보상 승인',
+      submitText: '승인하기',
+      content: <p>운송장 <b>{target.trackingNo}</b> 건의 보상을 승인하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: '보상완료' } : i)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleCustomerReply = (id: string) => {
     const target = items.find((i) => i.id === id);
     if (!target) return;
-    alert(`${target.customerName} 고객(${target.customerPhone})에게 회신 알림을 전송했습니다.`);
+
+    let replyMsg = '';
+    setModalContent({
+      title: '고객 회신 전송',
+      submitText: '전송',
+      content: (
+        <>
+          <div style={{ marginBottom: '16px' }}>
+            수신자: <b>{target.customerName}</b> 고객 ({target.customerPhone})
+          </div>
+          <div className="form-group">
+            <label>회신 메시지 입력</label>
+            <textarea rows={4} placeholder="고객에게 안내할 내용을 입력하세요." onChange={e => replyMsg = e.target.value}></textarea>
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!replyMsg.trim()) return;
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: '확인중' } : i))); // 상태 임의 변경
+        setModalContent({ title: '전송 완료', content: <p>회신 알림이 전송되었습니다.</p>, noFooter: true });
+        setTimeout(() => setModalOpen(false), 2000);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleReject = (id: string) => {
     const target = items.find((i) => i.id === id);
     if (!target) return;
-    if (!window.confirm(`운송장 ${target.trackingNo} 건을 반려 처리하시겠습니까?`)) return;
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: '반려' } : i))
-    );
+
+    setModalContent({
+      title: '반려 처리',
+      submitText: '반려',
+      content: <p>운송장 <b>{target.trackingNo}</b> 건을 반려 처리하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: '반려' } : i)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleDetail = (id: string) => {
     const target = items.find((i) => i.id === id);
     if (!target) return;
-    alert(
-      `[상세 정보]
-운송장 번호: ${target.trackingNo}
-유형: ${target.type}
-고객: ${target.customerName} (${target.customerPhone})
-접수 시간: ${target.receivedTime}
-처리 상태: ${target.status}`
-    );
+
+    setModalContent({
+      title: '예외/CS 상세 정보',
+      noFooter: true,
+      content: (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, gap: '8px', display: 'flex', flexDirection: 'column' }}>
+          <li><strong>운송장 번호:</strong> {target.trackingNo}</li>
+          <li><strong>유형:</strong> {target.type}</li>
+          <li><strong>고객:</strong> {target.customerName} ({target.customerPhone})</li>
+          <li><strong>접수 시간:</strong> {target.receivedTime}</li>
+          <li><strong>처리 상태:</strong> {target.status}</li>
+        </ul>
+      )
+    });
+    setModalOpen(true);
   };
 
   const handleDownloadHistory = () => {
-    alert('처리 이력을 다운로드합니다. (CSV 파일로 저장됩니다)');
+    setModalContent({
+      title: '다운로드 준비 중',
+      noFooter: true,
+      content: <p>처리 이력을 CSV 파일로 다운로드 중입니다...</p>
+    });
+    setModalOpen(true);
+    setTimeout(() => {
+      setModalOpen(false);
+    }, 1500);
   };
 
   const handleRegisterException = () => {
-    alert('예외 화물 직접 등록 창을 엽니다.');
+    let trackingNo = '';
+    let type: ExceptionType = '파손';
+    let customerName = '';
+
+    setModalContent({
+      title: '예외 화물 수동 접수',
+      submitText: '접수',
+      content: (
+        <>
+          <div className="form-group">
+            <label>운송장 번호</label>
+            <input type="text" placeholder="예: 5839-xxxx-xxxx" onChange={e => trackingNo = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>유형</label>
+            <select onChange={e => type = e.target.value as ExceptionType} defaultValue={type}>
+              <option value="파손">파손</option>
+              <option value="분실">분실</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>고객명</label>
+            <input type="text" placeholder="예: 홍길동" onChange={e => customerName = e.target.value} />
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!trackingNo || !customerName) return;
+        const newItem: CsItem = {
+          id: Date.now().toString(),
+          trackingNo,
+          type,
+          customerName,
+          customerPhone: '010-0000-0000',
+          path: '현장 직접 등록',
+          pathDetail: '수동 등록',
+          receivedTime: new Date().toTimeString().slice(0,8),
+          status: '확인중'
+        };
+        setItems(prev => [newItem, ...prev]);
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const itemsPerPage = 5;
@@ -393,26 +437,40 @@ export default function LogisticsCS() {
         </table>
       </div>
 
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={modalContent?.title || ''}
+        onSubmit={modalContent?.onSubmit}
+        submitText={modalContent?.submitText}
+        cancelText={modalContent?.cancelText}
+        noFooter={modalContent?.noFooter}
+      >
+        {modalContent?.content}
+      </Modal>
+
       {/* Pagination */}
-      <div className="pagination-wrap">
-        <div className="page-info">
-          전체 {filteredItems.length}건 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredItems.length)}건 표시
+      {totalPages > 1 && (
+        <div className="pagination-wrap">
+          <div className="page-info">
+            전체 {filteredItems.length}건 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredItems.length)}건 표시
+          </div>
+          <div className="page-numbers">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                className={p === page ? 'active' : ''}
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </button>
+            ))}
+            {page < totalPages && (
+              <button onClick={() => setPage(page + 1)}>&gt;</button>
+            )}
+          </div>
         </div>
-        <div className="page-numbers">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <button
-              key={p}
-              className={p === page ? 'active' : ''}
-              onClick={() => setPage(p)}
-            >
-              {p}
-            </button>
-          ))}
-          {page < totalPages && (
-            <button onClick={() => setPage(page + 1)}>&gt;</button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Footer Info */}
       <div className="footer-info">

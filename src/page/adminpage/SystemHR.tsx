@@ -1,70 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './SystemHR.scss';
-
-type TeamFilter = '전체 인력' | '하차반' | '분류반' | '상차반';
-type StatusFilter = '전체' | '근무중' | '결근' | '지각' | '퇴근';
-type WorkStatus = '근무중' | '결근' | '지각' | '퇴근';
-type Team = '하차반' | '분류반' | '상차반';
-
-interface StaffItem {
-  id: string;
-  name: string;
-  team: Team;
-  workHours: string;
-  clockIn: string;
-  clockOut: string;
-  status: WorkStatus;
-}
-
-const initialStaff: StaffItem[] = [
-  {
-    id: '1',
-    name: '윤도현',
-    team: '하차반',
-    workHours: '06:00 - 14:00',
-    clockIn: '05:58',
-    clockOut: '-',
-    status: '근무중',
-  },
-  {
-    id: '2',
-    name: '서지안',
-    team: '분류반',
-    workHours: '06:00 - 14:00',
-    clockIn: '06:21',
-    clockOut: '-',
-    status: '지각',
-  },
-  {
-    id: '3',
-    name: '한승우',
-    team: '상차반',
-    workHours: '06:00 - 14:00',
-    clockIn: '미출근',
-    clockOut: '-',
-    status: '결근',
-  },
-  {
-    id: '4',
-    name: '백서윤',
-    team: '분류반',
-    workHours: '06:00 - 14:00',
-    clockIn: '05:55',
-    clockOut: '-',
-    status: '근무중',
-  },
-  {
-    id: '5',
-    name: '조은우',
-    team: '하차반',
-    workHours: '22:00 - 06:00',
-    clockIn: '21:59',
-    clockOut: '06:02',
-    status: '퇴근',
-  },
-];
-
-const availableSubstitutes = ['남기훈', '오하린', '정예준', '류지아'];
+import Modal from '../../components/Modal';
+import {
+  type TeamFilter,
+  type StatusFilter,
+  type WorkStatus,
+  type Team,
+  type StaffItem,
+  initialStaff,
+  availableSubstitutes
+} from '../../data/mockHR';
 
 function statusBadgeClass(status: WorkStatus) {
   switch (status) {
@@ -80,25 +25,43 @@ function statusBadgeClass(status: WorkStatus) {
 }
 
 export default function SystemHR() {
-  const [staff, setStaff] = useState<StaffItem[]>(initialStaff);
+  const [staff, setStaff] = useState<StaffItem[]>(() => {
+    const saved = sessionStorage.getItem('mock_hr_staff');
+    return saved ? JSON.parse(saved) : initialStaff;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mock_hr_staff', JSON.stringify(staff));
+  }, [staff]);
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('전체 인력');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('전체');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [scheduleViewOpen, setScheduleViewOpen] = useState(false);
 
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+    submitText?: string;
+    cancelText?: string;
+    onSubmit?: () => void;
+    noFooter?: boolean;
+  } | null>(null);
+
   const stats = useMemo(() => {
-    const total = staff.length + 35;
-    const present = staff.filter((s) => s.status === '근무중' || s.status === '지각').length + 34;
+    const total = staff.length;
+    const present = staff.filter((s) => s.status === '근무중' || s.status === '지각').length;
     const absent = staff.filter((s) => s.status === '결근').length;
     const late = staff.filter((s) => s.status === '지각').length;
-    const working = staff.filter((s) => s.status === '근무중').length + 34;
+    const working = staff.filter((s) => s.status === '근무중').length;
     return { total, present, absent, late, working };
   }, [staff]);
 
   const teamCounts = useMemo(() => {
     return {
-      '전체 인력': staff.length + 35,
+      '전체 인력': staff.length,
       '하차반': staff.filter((s) => s.team === '하차반').length,
       '분류반': staff.filter((s) => s.team === '분류반').length,
       '상차반': staff.filter((s) => s.team === '상차반').length,
@@ -120,68 +83,187 @@ export default function SystemHR() {
   const handleScheduleChange = (id: string) => {
     const person = staff.find((s) => s.id === id);
     if (!person) return;
-    const newHours = window.prompt(
-      `${person.name}의 근무 시간을 변경합니다.`,
-      person.workHours
-    );
-    if (!newHours) return;
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, workHours: newHours } : s))
-    );
-    alert(`${person.name}의 근무 시간이 변경되었습니다.`);
+    
+    let newHours = person.workHours;
+
+    setModalContent({
+      title: '근무 시간 변경',
+      submitText: '변경하기',
+      content: (
+        <div className="form-group">
+          <label>{person.name}의 근무 시간 입력</label>
+          <input type="text" defaultValue={newHours} onChange={(e) => newHours = e.target.value} />
+        </div>
+      ),
+      onSubmit: () => {
+        if (!newHours.trim()) return;
+        setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, workHours: newHours } : s)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleMarkAbsent = (id: string) => {
     const person = staff.find((s) => s.id === id);
     if (!person) return;
-    if (!window.confirm(`${person.name}을(를) 결근 처리하시겠습니까?`)) return;
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: '결근', clockIn: '미출근' } : s))
-    );
+
+    setModalContent({
+      title: '결근 처리',
+      submitText: '결근 처리',
+      content: <p><b>{person.name}</b>을(를) 결근 처리하시겠습니까?</p>,
+      onSubmit: () => {
+        setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, status: '결근', clockIn: '미출근' } : s)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
+  };
+
+  const handleMarkPresent = (id: string) => {
+    const person = staff.find((s) => s.id === id);
+    if (!person) return;
+
+    setModalContent({
+      title: '출근 처리',
+      submitText: '출근 처리',
+      content: <p><b>{person.name}</b>을(를) 출근 처리하시겠습니까?</p>,
+      onSubmit: () => {
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, status: '근무중', clockIn: timeStr } : s)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleAssignSubstitute = (id: string) => {
     const person = staff.find((s) => s.id === id);
     if (!person) return;
-    const substituteName = window.prompt(
-      `${person.team}에 대타 인력을 배정합니다.
-(예: ${availableSubstitutes.join(', ')})`,
-      availableSubstitutes[0]
-    );
-    if (!substituteName) return;
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    setStaff((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, name: substituteName, status: '근무중', clockIn: timeStr, clockOut: '-' }
-          : s
-      )
-    );
-    alert(`${person.team}에 ${substituteName}(이)가 대타로 배정되었습니다.`);
+
+    let substituteName = availableSubstitutes[0];
+
+    setModalContent({
+      title: '대타 배정',
+      submitText: '배정',
+      content: (
+        <div className="form-group">
+          <label>{person.team}에 배정할 대타 인력 선택</label>
+          <select onChange={(e) => substituteName = e.target.value} defaultValue={substituteName}>
+            {availableSubstitutes.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      ),
+      onSubmit: () => {
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setStaff((prev) =>
+          prev.map((s) =>
+            s.id === id
+              ? { ...s, name: substituteName, status: '근무중', clockIn: timeStr, clockOut: '-' }
+              : s
+          )
+        );
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleViewWorkLog = (id: string) => {
     const person = staff.find((s) => s.id === id);
     if (!person) return;
-    alert(
-      `[근무 기록]
-이름: ${person.name}
-소속 반: ${person.team}
-근무 시간: ${person.workHours}
-출근: ${person.clockIn}
-퇴근: ${person.clockOut}
-상태: ${person.status}`
-    );
+
+    setModalContent({
+      title: '근무 기록 상세',
+      noFooter: true,
+      content: (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, gap: '8px', display: 'flex', flexDirection: 'column' }}>
+          <li><strong>이름:</strong> {person.name}</li>
+          <li><strong>소속 반:</strong> {person.team}</li>
+          <li><strong>근무 시간:</strong> {person.workHours}</li>
+          <li><strong>출근:</strong> {person.clockIn}</li>
+          <li><strong>퇴근:</strong> {person.clockOut}</li>
+          <li><strong>상태:</strong> {person.status}</li>
+        </ul>
+      )
+    });
+    setModalOpen(true);
   };
 
   const handleWeeklySchedule = () => {
     setScheduleViewOpen(true);
-    alert('주간 스케줄을 표시합니다.');
+    setModalContent({
+      title: '주간 스케줄 표',
+      noFooter: true,
+      content: (
+        <div style={{ textAlign: 'center' }}>
+          <p>이번 주 A조/B조/상하차반 스케줄 요약</p>
+          <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f5f9' }}>
+                  <th>조</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>A조</td><td>주간</td><td>주간</td><td>주간</td><td>야간</td><td>야간</td><td>휴무</td><td>휴무</td></tr>
+                <tr><td>B조</td><td>휴무</td><td>휴무</td><td>야간</td><td>주간</td><td>주간</td><td>주간</td><td>야간</td></tr>
+                <tr><td>상하차</td><td>야간</td><td>야간</td><td>휴무</td><td>휴무</td><td>주간</td><td>주간</td><td>주간</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    });
+    setModalOpen(true);
   };
 
   const handleRegisterStaff = () => {
-    alert('신규 인력 등록 창을 엽니다.');
+    let name = '';
+    let team: Team = '분류반';
+    let workHours = '09:00 - 18:00';
+
+    setModalContent({
+      title: '신규 인력 등록',
+      submitText: '등록',
+      content: (
+        <>
+          <div className="form-group">
+            <label>직원 이름</label>
+            <input type="text" placeholder="예: 김철수" onChange={e => name = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>소속 반</label>
+            <select onChange={e => team = e.target.value as Team} defaultValue={team}>
+              <option value="분류반">분류반</option>
+              <option value="하차반">하차반</option>
+              <option value="상차반">상차반</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>근무 시간 (스케줄)</label>
+            <input type="text" defaultValue={workHours} onChange={e => workHours = e.target.value} />
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!name.trim()) return;
+        const newPerson: StaffItem = {
+          id: Date.now().toString(),
+          name,
+          team,
+          workHours,
+          clockIn: '-',
+          clockOut: '-',
+          status: '결근'
+        };
+        setStaff(prev => [newPerson, ...prev]);
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const itemsPerPage = 5;
@@ -309,9 +391,14 @@ export default function SystemHR() {
                 <td>
                   <div className="action-buttons">
                     {person.status === '결근' ? (
-                      <button className="btn-action primary-light" onClick={() => handleAssignSubstitute(person.id)}>
-                        대타 인력 배정
-                      </button>
+                      <>
+                        <button className="btn-action primary-light" onClick={() => handleAssignSubstitute(person.id)}>
+                          대타 인력 배정
+                        </button>
+                        <button className="btn-action success-light" onClick={() => handleMarkPresent(person.id)}>
+                          출근 처리
+                        </button>
+                      </>
                     ) : person.status === '퇴근' ? (
                       <button className="btn-action" onClick={() => handleViewWorkLog(person.id)}>
                         근무 기록 보기
@@ -332,25 +419,40 @@ export default function SystemHR() {
             ))}
           </tbody>
         </table>
-        <div className="pagination-container">
-          <span className="pagination-info">
-            전체 {filteredStaff.length}명 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredStaff.length)}명 표시
-          </span>
-          <div className="pagination">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                className={`page-btn ${p === page ? 'active' : ''}`}
-                onClick={() => setPage(p)}
-              >
-                {p}
-              </button>
-            ))}
-            {page < totalPages && (
-              <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
-            )}
+
+        <Modal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={modalContent?.title || ''}
+          onSubmit={modalContent?.onSubmit}
+          submitText={modalContent?.submitText}
+          cancelText={modalContent?.cancelText}
+          noFooter={modalContent?.noFooter}
+        >
+          {modalContent?.content}
+        </Modal>
+
+        {totalPages > 1 && (
+          <div className="pagination-container">
+            <span className="pagination-info">
+              전체 {filteredStaff.length}명 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredStaff.length)}명 표시
+            </span>
+            <div className="pagination">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  className={`page-btn ${p === page ? 'active' : ''}`}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </button>
+              ))}
+              {page < totalPages && (
+                <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="footer-note">

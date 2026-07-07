@@ -115,10 +115,29 @@
 
   // Section Title
   .section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 16px;
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 16px;
+
+    .btn-outline {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      color: #475569;
+
+      &:hover {
+        background: #f8fafc;
+      }
+    }
   }
 
   // Incoming Dock Grid
@@ -296,6 +315,24 @@
             &:hover {
               background: #dbeafe;
             }
+          }
+        }
+
+        .btn-light-red {
+          border-color: #fecaca;
+          color: #ef4444;
+          background: #fef2f2;
+          padding: 6px 16px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          border-width: 1px;
+          border-style: solid;
+          margin-left: 8px;
+
+          &:hover {
+            background: #fee2e2;
           }
         }
       }

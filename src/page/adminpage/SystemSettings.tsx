@@ -1,70 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './SystemSettings.scss';
-
-type PermissionFilter = '전체' | '센터장' | '반장' | 'CS담당' | '현장직원';
-type Permission = '센터장' | '반장' | 'CS담당' | '현장직원';
-type AccountStatus = '활성' | '잠금';
-type TabFilter = '계정 관리' | '권한 그룹 설정' | '접속 로그';
-
-interface AccountItem {
-  id: string;
-  name: string;
-  loginId: string;
-  permission: Permission;
-  role: string;
-  lastAccess: string;
-  status: AccountStatus;
-}
-
-const initialAccounts: AccountItem[] = [
-  {
-    id: '1',
-    name: '오현석',
-    loginId: 'hsoh',
-    permission: '센터장',
-    role: '남양주 터미널장',
-    lastAccess: '오늘 08:10',
-    status: '활성',
-  },
-  {
-    id: '2',
-    name: '김민준',
-    loginId: 'mjkim',
-    permission: '반장',
-    role: '분류반 반장',
-    lastAccess: '오늘 09:42',
-    status: '활성',
-  },
-  {
-    id: '3',
-    name: '류하경',
-    loginId: 'hkryu',
-    permission: 'CS담당',
-    role: '예외 화물 처리반',
-    lastAccess: '오늘 09:15',
-    status: '활성',
-  },
-  {
-    id: '4',
-    name: '신동훈',
-    loginId: 'dhshin',
-    permission: '현장직원',
-    role: '상차반',
-    lastAccess: '3일 전',
-    status: '잠금',
-  },
-  {
-    id: '5',
-    name: '백나윤',
-    loginId: 'nybaek',
-    permission: '반장',
-    role: '하차반 반장',
-    lastAccess: '오늘 07:50',
-    status: '활성',
-  },
-];
-
-const permissionOptions: Permission[] = ['센터장', '반장', 'CS담당', '현장직원'];
+import Modal from '../../components/Modal';
+import {
+  type PermissionFilter,
+  type Permission,
+  type TabFilter,
+  type AccountItem,
+  initialAccounts,
+  permissionOptions
+} from '../../data/mockSettings';
 
 function permissionBadgeClass(permission: Permission) {
   switch (permission) {
@@ -80,17 +24,35 @@ function permissionBadgeClass(permission: Permission) {
 }
 
 export default function SystemSettings() {
-  const [accounts, setAccounts] = useState<AccountItem[]>(initialAccounts);
+  const [accounts, setAccounts] = useState<AccountItem[]>(() => {
+    const saved = sessionStorage.getItem('mock_settings_accounts');
+    return saved ? JSON.parse(saved) : initialAccounts;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mock_settings_accounts', JSON.stringify(accounts));
+  }, [accounts]);
   const [activeTab, setActiveTab] = useState<TabFilter>('계정 관리');
   const [permissionFilter, setPermissionFilter] = useState<PermissionFilter>('전체');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
 
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+    submitText?: string;
+    cancelText?: string;
+    onSubmit?: () => void;
+    noFooter?: boolean;
+  } | null>(null);
+
   const stats = useMemo(() => {
-    const total = accounts.length + 13;
+    const total = accounts.length;
     const centerHead = accounts.filter((a) => a.permission === '센터장').length;
-    const teamLead = accounts.filter((a) => a.permission === '반장').length + 2;
-    const csStaff = accounts.filter((a) => a.permission === 'CS담당').length + 2;
+    const teamLead = accounts.filter((a) => a.permission === '반장').length;
+    const csStaff = accounts.filter((a) => a.permission === 'CS담당').length;
     const locked = accounts.filter((a) => a.status === '잠금').length;
     return { total, centerHead, teamLead, csStaff, locked };
   }, [accounts]);
@@ -111,46 +73,123 @@ export default function SystemSettings() {
   const handleEditPermission = (id: string) => {
     const acc = accounts.find((a) => a.id === id);
     if (!acc) return;
-    const newPermission = window.prompt(
-      `${acc.name}의 권한 등급을 변경합니다.
-(예: ${permissionOptions.join(', ')})`,
-      acc.permission
-    ) as Permission | null;
-    if (!newPermission) return;
-    if (!permissionOptions.includes(newPermission)) {
-      alert('올바른 권한 등급을 입력해주세요.');
-      return;
-    }
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, permission: newPermission } : a))
-    );
-    alert(`${acc.name}의 권한이 ${newPermission}(으)로 변경되었습니다.`);
+    
+    let newPermission = acc.permission;
+
+    setModalContent({
+      title: '권한 변경',
+      submitText: '변경하기',
+      content: (
+        <div className="form-group">
+          <label>{acc.name} ({acc.loginId})의 권한 등급을 선택하세요</label>
+          <select onChange={(e) => newPermission = e.target.value as Permission} defaultValue={newPermission}>
+            {permissionOptions.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+      ),
+      onSubmit: () => {
+        setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, permission: newPermission } : a)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleLockAccount = (id: string) => {
     const acc = accounts.find((a) => a.id === id);
     if (!acc) return;
-    if (!window.confirm(`${acc.name}(${acc.loginId}) 계정을 잠그시겠습니까?`)) return;
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: '잠금' } : a))
-    );
+    
+    setModalContent({
+      title: '계정 잠금 처리',
+      submitText: '계정 잠금',
+      content: <p><b>{acc.name}({acc.loginId})</b> 계정을 잠그시겠습니까?</p>,
+      onSubmit: () => {
+        setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, status: '잠금' } : a)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleUnlockAccount = (id: string) => {
     const acc = accounts.find((a) => a.id === id);
     if (!acc) return;
-    if (!window.confirm(`${acc.name}(${acc.loginId}) 계정의 잠금을 해제하시겠습니까?`)) return;
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: '활성' } : a))
-    );
+    
+    setModalContent({
+      title: '계정 잠금 해제',
+      submitText: '잠금 해제',
+      content: <p><b>{acc.name}({acc.loginId})</b> 계정의 잠금을 해제하시겠습니까?</p>,
+      onSubmit: () => {
+        setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, status: '활성' } : a)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleViewPermissionHistory = () => {
-    alert('권한 변경 이력을 표시합니다.');
+    setModalContent({
+      title: '권한 변경 이력',
+      noFooter: true,
+      content: (
+        <div style={{ textAlign: 'center' }}>
+          <p>최근 7일간 권한 변경 내역</p>
+          <ul style={{ listStyle: 'none', padding: 0, marginTop: '10px', fontSize: '0.9rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <li>[2026-06-24] 김정수(CS담당) → (반장) 승급</li>
+            <li>[2026-06-23] 박지훈(신규가입) → (현장직원) 배정</li>
+            <li>[2026-06-21] 최영민(현장직원) → 계정 잠금 처리</li>
+          </ul>
+        </div>
+      )
+    });
+    setModalOpen(true);
   };
 
   const handleCreateAccount = () => {
-    alert('신규 계정 생성 창을 엽니다.');
+    let name = '';
+    let loginId = '';
+    let permission: Permission = '현장직원';
+
+    setModalContent({
+      title: '신규 계정 생성',
+      submitText: '생성',
+      content: (
+        <>
+          <div className="form-group">
+            <label>이름</label>
+            <input type="text" placeholder="예: 박지훈" onChange={e => name = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>로그인 ID</label>
+            <input type="text" placeholder="예: nexus_park" onChange={e => loginId = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>초기 권한</label>
+            <select onChange={e => permission = e.target.value as Permission} defaultValue={permission}>
+              <option value="현장직원">현장직원</option>
+              <option value="CS담당">CS담당</option>
+              <option value="반장">반장</option>
+              <option value="센터장">센터장</option>
+            </select>
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!name.trim() || !loginId.trim()) return;
+        const newAccount: AccountItem = {
+          id: Date.now().toString(),
+          name,
+          loginId,
+          permission,
+          role: permission,
+          lastAccess: '접속 이력 없음',
+          status: '활성'
+        };
+        setAccounts(prev => [newAccount, ...prev]);
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const itemsPerPage = 5;
@@ -303,25 +342,40 @@ export default function SystemSettings() {
                 ))}
               </tbody>
             </table>
-            <div className="pagination-container">
-              <span className="pagination-info">
-                전체 {filteredAccounts.length}명 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredAccounts.length)}명 표시
-              </span>
-              <div className="pagination">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    className={`page-btn ${p === page ? 'active' : ''}`}
-                    onClick={() => setPage(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
-                {page < totalPages && (
-                  <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
-                )}
+
+            <Modal
+              isOpen={modalOpen}
+              onClose={() => setModalOpen(false)}
+              title={modalContent?.title || ''}
+              onSubmit={modalContent?.onSubmit}
+              submitText={modalContent?.submitText}
+              cancelText={modalContent?.cancelText}
+              noFooter={modalContent?.noFooter}
+            >
+              {modalContent?.content}
+            </Modal>
+
+            {totalPages > 1 && (
+              <div className="pagination-container">
+                <span className="pagination-info">
+                  전체 {filteredAccounts.length}명 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredAccounts.length)}명 표시
+                </span>
+                <div className="pagination">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      className={`page-btn ${p === page ? 'active' : ''}`}
+                      onClick={() => setPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  {page < totalPages && (
+                    <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </>
       )}

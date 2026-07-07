@@ -120,10 +120,15 @@
     justify-content: space-between;
     align-items: center;
 
-    .filter-group {
+    .filter-left {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 32px;
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
 
       .filter-label {
         font-size: 13px;
@@ -157,6 +162,7 @@
         }
       }
     }
+  }
 
     .search-box {
       display: flex;
@@ -327,6 +333,16 @@
 
           &:hover {
             background-color: #dbeafe;
+          }
+        }
+
+        &.danger-light {
+          background-color: #fef2f2;
+          border-color: #fecaca;
+          color: #dc2626;
+
+          &:hover {
+            background-color: #fee2e2;
           }
         }
       }

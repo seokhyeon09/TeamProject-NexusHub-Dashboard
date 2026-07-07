@@ -1,76 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import './DeliveryPickup.scss';
-
-type PickupZone = '전체 구역' | '진접읍' | '오남읍' | '별내동';
-type PickupStatusFilter = '전체' | '배정 대기' | '배정 완료' | '수거 완료';
-type PickupStatus = '배정대기' | '배정완료' | '수거완료';
-
-interface PickupItem {
-  id: string;
-  shopName: string;
-  applicantName: string;
-  address: string;
-  zone: PickupZone;
-  timeSlot: string;
-  driver: string | null;
-  status: PickupStatus;
-}
-
-const initialItems: PickupItem[] = [
-  {
-    id: '1',
-    shopName: '진접 분식당',
-    applicantName: '윤서연',
-    address: '진접읍 장현리 123-4',
-    zone: '진접읍',
-    timeSlot: '10:00~11:00',
-    driver: '김철수',
-    status: '배정완료',
-  },
-  {
-    id: '2',
-    shopName: '오남 수제청 공방',
-    applicantName: '박하늘',
-    address: '오남읍 오남리 56-2',
-    zone: '오남읍',
-    timeSlot: '11:00~12:00',
-    driver: '이영희',
-    status: '수거완료',
-  },
-  {
-    id: '3',
-    shopName: '별내 핸드메이드샵',
-    applicantName: '안도현',
-    address: '별내동 805-1 아파트',
-    zone: '별내동',
-    timeSlot: '13:00~14:00',
-    driver: null,
-    status: '배정대기',
-  },
-  {
-    id: '4',
-    shopName: '퇴계원 인쇄소',
-    applicantName: '신유진',
-    address: '퇴계원읍 119-7',
-    zone: '전체 구역',
-    timeSlot: '14:00~15:00',
-    driver: null,
-    status: '배정대기',
-  },
-  {
-    id: '5',
-    shopName: '진접 꽃집 라일락',
-    applicantName: '임소율',
-    address: '진접읍 부평리 12',
-    zone: '진접읍',
-    timeSlot: '09:00~10:00',
-    driver: '정수민',
-    status: '수거완료',
-  },
-];
-
-const availableDrivers = ['최우진', '서지훈', '한소미', '배기범'];
-
+import Modal from '../../components/Modal';
+import {
+  type PickupZone,
+  type PickupStatusFilter,
+  type PickupStatus,
+  type PickupItem,
+  initialItems,
+  availableDrivers
+} from '../../data/mockPickup';
 function statusBadgeClass(status: PickupStatus) {
   switch (status) {
     case '배정대기':
@@ -83,18 +21,36 @@ function statusBadgeClass(status: PickupStatus) {
 }
 
 export default function DeliveryPickup() {
-  const [items, setItems] = useState<PickupItem[]>(initialItems);
+  const [items, setItems] = useState<PickupItem[]>(() => {
+    const saved = sessionStorage.getItem('mock_pickup_items');
+    return saved ? JSON.parse(saved) : initialItems;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('mock_pickup_items', JSON.stringify(items));
+  }, [items]);
   const [statusFilter, setStatusFilter] = useState<PickupStatusFilter>('전체');
   const [zoneFilter, setZoneFilter] = useState<PickupZone>('전체 구역');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [optimized, setOptimized] = useState(false);
 
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+    submitText?: string;
+    cancelText?: string;
+    onSubmit?: () => void;
+    noFooter?: boolean;
+  } | null>(null);
+
   const stats = useMemo(() => {
-    const total = items.length + 29;
-    const assigned = items.filter((i) => i.status !== '배정대기').length + 16;
-    const completed = items.filter((i) => i.status === '수거완료').length + 13;
-    const waiting = items.filter((i) => i.status === '배정대기').length + 11;
+    const total = items.length;
+    const assigned = items.filter((i) => i.status !== '배정대기').length;
+    const completed = items.filter((i) => i.status === '수거완료').length;
+    const waiting = items.filter((i) => i.status === '배정대기').length;
     return { total, assigned, completed, waiting, smallBizRate: 76 };
   }, [items]);
 
@@ -118,81 +74,183 @@ export default function DeliveryPickup() {
     });
   }, [items, statusFilter, zoneFilter, searchTerm]);
 
-  const handleAssignDriver = (id: string) => {
+  const handleAssign = (id: string) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    const driverName = window.prompt(
-      `${item.shopName}에 배정할 기사를 선택하세요.
-(예: ${availableDrivers.join(', ')})`,
-      availableDrivers[0]
-    );
-    if (!driverName) return;
-    setItems((prev) =>
-      prev.map((i) =>
-        i.id === id ? { ...i, driver: driverName, status: '배정완료' } : i
-      )
-    );
-    alert(`${item.shopName}에 ${driverName} 기사가 배정되었습니다.`);
+    
+    let selectedDriver = availableDrivers[0];
+
+    setModalContent({
+      title: '기사 배정',
+      submitText: '배정하기',
+      content: (
+        <div className="form-group">
+          <label>{item.shopName}에 배정할 기사를 선택하세요.</label>
+          <select onChange={(e) => selectedDriver = e.target.value} defaultValue={selectedDriver}>
+            {availableDrivers.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      ),
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => i.id === id ? { ...i, driver: selectedDriver, status: '배정완료' } : i));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleChangeDriver = (id: string) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    const driverName = window.prompt(
-      `${item.shopName}의 배정 기사를 변경합니다.
-(예: ${availableDrivers.join(', ')})`,
-      item.driver ?? availableDrivers[0]
-    );
-    if (!driverName) return;
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, driver: driverName } : i))
-    );
-    alert(`${item.shopName}의 기사가 ${driverName}(으)로 변경되었습니다.`);
+
+    let selectedDriver = item.driver ?? availableDrivers[0];
+
+    setModalContent({
+      title: '배정 기사 변경',
+      submitText: '변경하기',
+      content: (
+        <div className="form-group">
+          <label>{item.shopName}의 배정 기사를 변경합니다.</label>
+          <select onChange={(e) => selectedDriver = e.target.value} defaultValue={selectedDriver}>
+            {availableDrivers.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      ),
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, driver: selectedDriver } : i)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleComplete = (id: string) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    if (!window.confirm(`${item.shopName} 건을 수거완료 처리하시겠습니까?`)) return;
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: '수거완료' } : i))
-    );
+
+    setModalContent({
+      title: '수거 완료 처리',
+      submitText: '완료 처리',
+      content: <p><b>{item.shopName}</b> 건을 수거완료 처리하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: '수거완료' } : i)));
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const handleDetail = (id: string) => {
     const item = items.find((i) => i.id === id);
     if (!item) return;
-    alert(
-      `[픽업 상세]
-상호: ${item.shopName}
-신청자: ${item.applicantName}
-주소: ${item.address}
-희망 시간: ${item.timeSlot}
-배정 기사: ${item.driver ?? '미배정'}
-상태: ${item.status}`
-    );
+
+    setModalContent({
+      title: '픽업 상세 정보',
+      noFooter: true,
+      content: (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, gap: '8px', display: 'flex', flexDirection: 'column' }}>
+          <li><strong>상호:</strong> {item.shopName}</li>
+          <li><strong>신청자:</strong> {item.applicantName}</li>
+          <li><strong>주소:</strong> {item.address}</li>
+          <li><strong>희망 시간:</strong> {item.timeSlot}</li>
+          <li><strong>배정 기사:</strong> {item.driver ?? '미배정'}</li>
+          <li><strong>상태:</strong> {item.status}</li>
+        </ul>
+      )
+    });
+    setModalOpen(true);
   };
 
   const handleOptimizeRoute = () => {
     setOptimized(true);
-    alert('수거 경로가 거리순으로 최적화되었습니다.');
+    setModalContent({
+      title: '경로 최적화 완료',
+      noFooter: true,
+      content: <p>수거 경로가 거리순으로 최적화되었습니다.</p>
+    });
+    setModalOpen(true);
   };
 
   const handleBulkAssign = () => {
     const waitingItems = items.filter((i) => i.status === '배정대기');
     if (waitingItems.length === 0) {
-      alert('현재 배정 대기 중인 건이 없습니다.');
+      setModalContent({
+        title: '알림',
+        noFooter: true,
+        content: <p>현재 배정 대기 중인 건이 없습니다.</p>
+      });
+      setModalOpen(true);
       return;
     }
-    if (!window.confirm(`배정 대기 중인 ${waitingItems.length}건을 가용 기사에게 일괄 배정하시겠습니까?`)) return;
-    setItems((prev) =>
-      prev.map((i, idx) =>
-        i.status === '배정대기'
-          ? { ...i, driver: availableDrivers[idx % availableDrivers.length], status: '배정완료' }
-          : i
-      )
-    );
-    alert(`${waitingItems.length}건이 일괄 배정되었습니다.`);
+
+    setModalContent({
+      title: '일괄 배정',
+      submitText: '일괄 배정 진행',
+      content: <p>배정 대기 중인 <b>{waitingItems.length}</b>건을 가용 기사에게 일괄 배정하시겠습니까?</p>,
+      onSubmit: () => {
+        setItems((prev) =>
+          prev.map((i, idx) =>
+            i.status === '배정대기'
+              ? { ...i, driver: availableDrivers[idx % availableDrivers.length], status: '배정완료' }
+              : i
+          )
+        );
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
+  };
+
+  const handleAddPickupRegion = () => {
+    let shopName = '';
+    let applicantName = '';
+    let address = '';
+    let zone: PickupZone = '진접읍';
+
+    setModalContent({
+      title: '신규 집화(수거) 지역 추가',
+      submitText: '추가',
+      content: (
+        <>
+          <div className="form-group">
+            <label>상호</label>
+            <input type="text" placeholder="예: 우리집 과일" onChange={(e) => shopName = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>신청자 이름</label>
+            <input type="text" placeholder="예: 김상인" onChange={(e) => applicantName = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>주소</label>
+            <input type="text" placeholder="예: 진접읍 해밀리 123" onChange={(e) => address = e.target.value} />
+          </div>
+          <div className="form-group">
+            <label>구역 분류</label>
+            <select onChange={(e) => zone = e.target.value as PickupZone} defaultValue={zone}>
+              <option value="진접읍">진접읍</option>
+              <option value="오남읍">오남읍</option>
+              <option value="별내동">별내동</option>
+            </select>
+          </div>
+        </>
+      ),
+      onSubmit: () => {
+        if (!shopName || !address) return;
+        const newItem: PickupItem = {
+          id: Date.now().toString(),
+          shopName,
+          applicantName,
+          address,
+          timeSlot: '미정',
+          status: '배정대기',
+          driver: null,
+          zone
+        };
+        setItems((prev) => [newItem, ...prev]);
+        setModalOpen(false);
+      }
+    });
+    setModalOpen(true);
   };
 
   const itemsPerPage = 5;
@@ -216,6 +274,7 @@ export default function DeliveryPickup() {
           </p>
         </div>
         <div className="header-actions">
+          <button className="btn-outline" onClick={handleAddPickupRegion}>지역 추가</button>
           <button className="btn-outline" onClick={handleOptimizeRoute}>수거 경로 최적화</button>
           <button className="btn-primary" onClick={handleBulkAssign}>수거 기사 일괄 배정</button>
         </div>
@@ -327,7 +386,7 @@ export default function DeliveryPickup() {
                 <td>
                   <div className="action-buttons">
                     {item.status === '배정대기' && (
-                      <button className="btn-action primary-light" onClick={() => handleAssignDriver(item.id)}>
+                      <button className="btn-action primary-light" onClick={() => handleAssign(item.id)}>
                         기사 배정
                       </button>
                     )}
@@ -352,25 +411,40 @@ export default function DeliveryPickup() {
             ))}
           </tbody>
         </table>
-        <div className="pagination-container">
-          <span className="pagination-info">
-            전체 {filteredItems.length}건 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredItems.length)}건 표시
-          </span>
-          <div className="pagination">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                className={`page-btn ${p === page ? 'active' : ''}`}
-                onClick={() => setPage(p)}
-              >
-                {p}
-              </button>
-            ))}
-            {page < totalPages && (
-              <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
-            )}
+
+        <Modal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          title={modalContent?.title || ''}
+          onSubmit={modalContent?.onSubmit}
+          submitText={modalContent?.submitText}
+          cancelText={modalContent?.cancelText}
+          noFooter={modalContent?.noFooter}
+        >
+          {modalContent?.content}
+        </Modal>
+
+        {totalPages > 1 && (
+          <div className="pagination-container">
+            <span className="pagination-info">
+              전체 {filteredItems.length}건 중 {startIdx + 1}-{Math.min(startIdx + itemsPerPage, filteredItems.length)}건 표시
+            </span>
+            <div className="pagination">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  className={`page-btn ${p === page ? 'active' : ''}`}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </button>
+              ))}
+              {page < totalPages && (
+                <button className="page-btn next" onClick={() => setPage(page + 1)}>›</button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="footer-note">
