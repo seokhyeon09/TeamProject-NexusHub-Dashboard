@@ -1,16 +1,55 @@
+import { useState } from 'react';
 import './Dashboard.scss';
 
 export default function Dashboard() {
-  // Chart Data Mock
-  const chartData = [
-    { time: '06시', in: 40, out: 40 },
-    { time: '08시', in: 65, out: 65 },
-    { time: '10시', in: 85, out: 85 },
-    { time: '12시', in: 75, out: 75 },
-    { time: '14시', in: 55, out: 55 },
-    { time: '16시', in: 45, out: 45 },
-    { time: '18시', in: 30, out: 30 },
-  ];
+  const [period, setPeriod] = useState<'오늘' | '이번 주' | '이번 달'>('오늘');
+  const [reportDownloaded, setReportDownloaded] = useState(false);
+
+  // Chart Data Mock (기간별로 살짝 다른 목업 값)
+  const chartDataByPeriod: Record<string, { time: string; in: number; out: number }[]> = {
+    '오늘': [
+      { time: '06시', in: 40, out: 40 },
+      { time: '08시', in: 65, out: 65 },
+      { time: '10시', in: 85, out: 85 },
+      { time: '12시', in: 75, out: 75 },
+      { time: '14시', in: 55, out: 55 },
+      { time: '16시', in: 45, out: 45 },
+      { time: '18시', in: 30, out: 30 },
+    ],
+    '이번 주': [
+      { time: '월', in: 58, out: 60 },
+      { time: '화', in: 62, out: 64 },
+      { time: '수', in: 82, out: 78 },
+      { time: '목', in: 70, out: 72 },
+      { time: '금', in: 88, out: 85 },
+      { time: '토', in: 40, out: 38 },
+      { time: '일', in: 20, out: 22 },
+    ],
+    '이번 달': [
+      { time: '1주', in: 62, out: 60 },
+      { time: '2주', in: 70, out: 68 },
+      { time: '3주', in: 75, out: 74 },
+      { time: '4주', in: 80, out: 82 },
+      { time: '5주', in: 66, out: 65 },
+      { time: '6주', in: 58, out: 60 },
+      { time: '7주', in: 72, out: 70 },
+    ],
+  };
+
+  const chartData = chartDataByPeriod[period];
+
+  const periodOptions: Array<'오늘' | '이번 주' | '이번 달'> = ['오늘', '이번 주', '이번 달'];
+
+  const handlePeriodChange = () => {
+    const currentIndex = periodOptions.indexOf(period);
+    const nextPeriod = periodOptions[(currentIndex + 1) % periodOptions.length];
+    setPeriod(nextPeriod);
+  };
+
+  const handleReportDownload = () => {
+    setReportDownloaded(true);
+    alert(`${period} 기준 리포트가 다운로드되었습니다. (mock_report_${period}.pdf)`);
+  };
 
   return (
     <div className="dashboard-page">
@@ -21,13 +60,19 @@ export default function Dashboard() {
             <h2>통합 가동률 및 물동량</h2>
             <span className="subtitle">Operations Dashboard</span>
           </div>
-          <p className="update-time">2026년 6월 24일 (수) 기준 · 실시간 갱신</p>
+          <p className="update-time">2026년 6월 24일 (수) 기준 · {period} 데이터 표시 중</p>
         </div>
         <div className="header-right">
-          <button className="btn-outline">기간 변경</button>
-          <button className="btn-primary">리포트 다운로드</button>
+          <button className="btn-outline" onClick={handlePeriodChange}>기간 변경 ({period})</button>
+          <button className="btn-primary" onClick={handleReportDownload}>리포트 다운로드</button>
         </div>
       </div>
+
+      {reportDownloaded && (
+        <div className="footer-info" style={{ marginBottom: '16px' }}>
+          리포트가 다운로드되었습니다.
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="dashboard-kpi-cards">
@@ -64,7 +109,7 @@ export default function Dashboard() {
         <div className="dash-card chart-card">
           <div className="card-title">
             시간대별 입고/출고 물동량
-            <span className="link-text">상세 보기</span>
+            <span className="link-text" onClick={() => alert('상세 물동량 리포트 화면으로 이동합니다.')} style={{ cursor: 'pointer' }}>상세 보기</span>
           </div>
           <div className="chart-container">
             {chartData.map((d, i) => (
