@@ -77,11 +77,6 @@ const initialRows: ZoneRow[] = [
 
 const availableDrivers = ['최우진', '서지훈', '한소미', '배기범'];
 
-function progressBarClass(status: RowStatus) {
-  if (status === '결원') return 'grey';
-  return 'green';
-}
-
 function progressColorByValue(progress: number) {
   if (progress >= 100) return 'green';
   if (progress > 0) return 'blue';
